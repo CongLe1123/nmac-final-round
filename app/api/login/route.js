@@ -13,7 +13,7 @@ export async function POST(request) {
     }
 
     const stmt = db.prepare(
-      "SELECT username, role FROM users WHERE LOWER(username) = LOWER(?) AND password = ?"
+      "SELECT id, username, role FROM users WHERE LOWER(username) = LOWER(?) AND password = ?"
     );
     const row = stmt.get(username, password);
 
@@ -26,6 +26,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       ok: true,
+      id: row.id,
       username: row.username,
       role: row.role,
     });

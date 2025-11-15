@@ -3,13 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const TOPIC_LABELS = [
-  "Nội khoa",
-  "Ngoại khoa",
-  "Sản–Nhi",
-  "Tâm thần–Thần kinh",
-];
-
 function AdminGlobalControls({ state, teams, refresh }) {
   const [delta, setDelta] = useState(10);
   const [busy, setBusy] = useState(false);
@@ -19,14 +12,14 @@ function AdminGlobalControls({ state, teams, refresh }) {
     setBuzzAllowed(state?.buzz?.allowed || false);
   }, [state?.buzz?.allowed]);
 
-  const adjust = async (username, sign) => {
+  const adjust = async (userId, sign) => {
     setBusy(true);
     try {
       await fetch("/api/game/score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username,
+          userId,
           delta: (sign === "+" ? 1 : -1) * (Number(delta) || 0),
         }),
       });
@@ -68,32 +61,30 @@ function AdminGlobalControls({ state, teams, refresh }) {
             {buzzAllowed ? "Disable Buzz" : "Enable Buzz"}
           </button>
           <div className="text-sm text-zinc-600">
-            {state?.buzz?.winner
-              ? `Buzz winner: ${state.buzz.winner}`
-              : buzzAllowed
-              ? "Buzz is OPEN"
-              : "Buzz is CLOSED"}
+            {(() => {
+              const winnerId = state?.buzz?.winner;
+              const winnerName = teams.find((t) => t.id === winnerId)?.username;
+              if (winnerId) return `Buzz winner: ${winnerName || winnerId}`;
+              return buzzAllowed ? "Buzz is OPEN" : "Buzz is CLOSED";
+            })()}
           </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {teams.map((t) => (
-            <div
-              key={t.username}
-              className="border rounded p-2 flex flex-col gap-1"
-            >
+            <div key={t.id} className="border rounded p-2 flex flex-col gap-1">
               <div className="font-medium">{t.username}</div>
               <div className="text-sm">Score: {t.score}</div>
               <div className="flex gap-2">
                 <button
                   disabled={busy}
-                  onClick={() => adjust(t.username, "+")}
+                  onClick={() => adjust(t.id, "+")}
                   className="flex-1 rounded bg-zinc-900 text-white py-1 text-sm"
                 >
                   +{delta}
                 </button>
                 <button
                   disabled={busy}
-                  onClick={() => adjust(t.username, "-")}
+                  onClick={() => adjust(t.id, "-")}
                   className="flex-1 rounded border py-1 text-sm"
                 >
                   -{delta}
@@ -109,10 +100,14 @@ function AdminGlobalControls({ state, teams, refresh }) {
         </div>
       </div>
 
-      {state?.hermes?.lastUsedBy && (
+      {state?.hermes?.lastUsedById && (
         <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900 flex items-center justify-between">
           <div>
-            Hermes Shoes activated by: <b>{state.hermes.lastUsedBy}</b>
+            Hermes Shoes activated by:{" "}
+            <b>
+              {teams.find((t) => t.id === state.hermes.lastUsedById)
+                ?.username || state.hermes.lastUsedById}
+            </b>
           </div>
           <button
             onClick={async () => {
@@ -134,7 +129,7 @@ export default function AdminRoundOnePage() {
   const [ready, setReady] = useState(false);
   const [state, setState] = useState(null);
   const [teams, setTeams] = useState([]);
-  const [availableTopics, setAvailableTopics] = useState([]);
+  const [r1Topics, setR1Topics] = useState([]);
   const [questions, setQuestions] = useState([]);
   const [currentQuestionId, setCurrentQuestionId] = useState(null);
   const esRef = useRef(null);
@@ -145,7 +140,7 @@ export default function AdminRoundOnePage() {
     if (j?.ok) {
       setState(j.state);
       setTeams(j.teams || []);
-      setAvailableTopics(j.availableTopics || []);
+      setR1Topics(j.r1Topics || []);
     }
   };
 
@@ -196,11 +191,10 @@ export default function AdminRoundOnePage() {
               ...s?.roundOne,
               selectedTopics: data.payload.selectedTopics,
               currentSelector: null,
-              currentQuestionTopic: data.payload.topic,
+              currentQuestionTopicId: data.payload.topicId,
               currentQuestionId: null,
             },
           }));
-          setAvailableTopics(data.payload.availableTopics || []);
         }
         if (data?.type === "r1:question")
           setState((s) => ({
@@ -217,14 +211,14 @@ export default function AdminRoundOnePage() {
         if (data?.type === "hermes:used") {
           setState((s) => ({
             ...s,
-            hermes: { ...s?.hermes, lastUsedBy: data.payload.username },
+            hermes: { ...s?.hermes, lastUsedById: data.payload.userId },
           }));
           fetchState();
         }
         if (data?.type === "hermes:cleared") {
           setState((s) => ({
             ...s,
-            hermes: { ...s?.hermes, lastUsedBy: null },
+            hermes: { ...s?.hermes, lastUsedById: null },
           }));
         }
       } catch {}
@@ -248,11 +242,11 @@ export default function AdminRoundOnePage() {
     });
   };
 
-  const setSelector = async (username) => {
+  const setSelector = async (userId) => {
     await fetch("/api/game/r1/selector", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username }),
+      body: JSON.stringify({ userId }),
     });
   };
 
@@ -275,7 +269,9 @@ export default function AdminRoundOnePage() {
 
   if (!ready) return null;
 
-  const eligible = new Set(state?.roundOne?.eligibleSelectors || []);
+  const eligible = new Set(
+    (state?.roundOne?.eligibleSelectors || []).map((x) => Number(x))
+  );
   const selectedTopics = state?.roundOne?.selectedTopics || {};
   const currentSelector = state?.roundOne?.currentSelector || null;
 
@@ -311,7 +307,6 @@ export default function AdminRoundOnePage() {
             Next
           </button>
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-4">
             <div className="rounded-md border p-4">
@@ -321,16 +316,16 @@ export default function AdminRoundOnePage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                 {teams.map((t) => (
                   <label
-                    key={t.username}
+                    key={t.id}
                     className="flex items-center gap-2 border rounded p-2"
                   >
                     <input
                       type="checkbox"
-                      checked={eligible.has(t.username)}
+                      checked={eligible.has(Number(t.id))}
                       onChange={(e) => {
                         const next = new Set(eligible);
-                        if (e.target.checked) next.add(t.username);
-                        else next.delete(t.username);
+                        if (e.target.checked) next.add(Number(t.id));
+                        else next.delete(Number(t.id));
                         updateEligibility(Array.from(next));
                       }}
                     />
@@ -343,14 +338,16 @@ export default function AdminRoundOnePage() {
                 <select
                   className="rounded-md border px-2 py-1"
                   value={currentSelector || ""}
-                  onChange={(e) => setSelector(e.target.value || null)}
+                  onChange={(e) => setSelector(Number(e.target.value) || null)}
                 >
                   <option value="">— none —</option>
-                  {Array.from(eligible).map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
+                  {teams
+                    .filter((t) => eligible.has(Number(t.id)))
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.username}
+                      </option>
+                    ))}
                 </select>
                 <button
                   onClick={() => setSelector(null)}
@@ -360,25 +357,33 @@ export default function AdminRoundOnePage() {
                 </button>
               </div>
             </div>
-
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 space-y-4">
             <div className="rounded-md border p-4">
               <div className="font-medium mb-2">Topics</div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                {TOPIC_LABELS.map((topic) => {
-                  const takenBy =
+                {(r1Topics || []).map((tp) => {
+                  const takenById =
                     Object.entries(selectedTopics).find(
-                      ([, tp]) => tp === topic
+                      ([, tId]) => Number(tId) === Number(tp.id)
                     )?.[0] || null;
+                  const takenByName = teams.find(
+                    (t) => String(t.id) === String(takenById)
+                  )?.username;
                   return (
                     <div
-                      key={topic}
+                      key={tp.id}
                       className={`rounded p-2 border ${
-                        takenBy ? "opacity-60" : ""
+                        takenById ? "opacity-60" : ""
                       }`}
                     >
-                      <div className="font-semibold">{topic}</div>
+                      <div className="font-semibold">{tp.name}</div>
                       <div className="text-xs text-zinc-600">
-                        {takenBy ? `Taken by ${takenBy}` : "Available"}
+                        {takenById
+                          ? `Taken by ${takenByName || takenById}`
+                          : "Available"}
                       </div>
                     </div>
                   );
@@ -406,19 +411,25 @@ export default function AdminRoundOnePage() {
                   <span className="italic text-zinc-500">none</span>
                 )}
               </div>
-              {state?.roundOne?.currentQuestionTopic ? (
+              {state?.roundOne?.currentQuestionTopicId ? (
                 <>
                   <div className="mb-2 text-sm text-zinc-700">
                     Only showing questions for:
                     <span className="ml-1 font-semibold">
-                      {state.roundOne.currentQuestionTopic}
+                      {(() => {
+                        const tId = state.roundOne.currentQuestionTopicId;
+                        const t = (r1Topics || []).find((x) => x.id === tId);
+                        return t?.name || tId;
+                      })()}
                     </span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {questions
-                      .filter(
-                        (q) => q.topic === state.roundOne.currentQuestionTopic
-                      )
+                      .filter((q) => {
+                        const tId = state.roundOne.currentQuestionTopicId;
+                        const t = (r1Topics || []).find((x) => x.id === tId);
+                        return t ? q.topic === t.name : false;
+                      })
                       .map((q) => (
                         <div
                           key={q.id}
@@ -465,10 +476,14 @@ export default function AdminRoundOnePage() {
           </div>
         </div>
 
-        {state?.hermes?.lastUsedBy && (
+        {state?.hermes?.lastUsedById && (
           <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900 flex items-center justify-between">
             <div>
-              Hermes Shoes activated by: <b>{state.hermes.lastUsedBy}</b>
+              Hermes Shoes activated by:{" "}
+              <b>
+                {teams.find((t) => t.id === state.hermes.lastUsedById)
+                  ?.username || state.hermes.lastUsedById}
+              </b>
             </div>
             <button
               onClick={async () => {

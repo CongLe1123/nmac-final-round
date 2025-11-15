@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { useHermes } from "@/lib/state";
+import { useHermes, useHermesById } from "@/lib/state";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request) {
   try {
-    const { username } = await request.json();
-    const result = useHermes(username);
+    const { username, userId } = await request.json();
+    const result = userId != null ? useHermesById(userId) : useHermes(username);
     if (result?.ok === false) {
       return NextResponse.json(result, { status: 400 });
     }

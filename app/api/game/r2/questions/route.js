@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { r2ListQuestions } from "@/lib/state";
+import { r2ListQuestionsByTopicId } from "@/lib/state";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const topic = searchParams.get("topic");
-    const questions = r2ListQuestions(topic || null);
+    const topicId = Number(searchParams.get("topicId")) || null;
+    const questions = r2ListQuestionsByTopicId(topicId);
     return NextResponse.json({ ok: true, questions });
   } catch (e) {
     return NextResponse.json(

@@ -6,20 +6,15 @@ import { useRouter } from "next/navigation";
 function AdminGlobalControls({ state, teams, refresh }) {
   const [delta, setDelta] = useState(10);
   const [busy, setBusy] = useState(false);
-  const [buzzAllowed, setBuzzAllowed] = useState(state?.buzz?.allowed || false);
 
-  useEffect(() => {
-    setBuzzAllowed(state?.buzz?.allowed || false);
-  }, [state?.buzz?.allowed]);
-
-  const adjust = async (username, sign) => {
+  const adjust = async (userId, sign) => {
     setBusy(true);
     try {
       await fetch("/api/game/score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username,
+          userId,
           delta: (sign === "+" ? 1 : -1) * (Number(delta) || 0),
         }),
       });
@@ -29,15 +24,7 @@ function AdminGlobalControls({ state, teams, refresh }) {
     }
   };
 
-  const toggleBuzz = async () => {
-    const allowed = !buzzAllowed;
-    setBuzzAllowed(allowed);
-    await fetch("/api/game/buzz/allow", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ allowed }),
-    });
-  };
+  // Buzz controls removed for Round Two
 
   return (
     <div className="space-y-4">
@@ -50,23 +37,7 @@ function AdminGlobalControls({ state, teams, refresh }) {
             value={delta}
             onChange={(e) => setDelta(e.target.value)}
           />
-          <button
-            onClick={toggleBuzz}
-            className={`rounded-md px-3 py-1 text-white ${
-              buzzAllowed
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-green-600 hover:bg-green-700"
-            }`}
-          >
-            {buzzAllowed ? "Disable Buzz" : "Enable Buzz"}
-          </button>
-          <div className="text-sm text-zinc-600">
-            {state?.buzz?.winner
-              ? `Buzz winner: ${state.buzz.winner}`
-              : buzzAllowed
-              ? "Buzz is OPEN"
-              : "Buzz is CLOSED"}
-          </div>
+          {/* Buzz controls/status removed in Round Two */}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {teams.map((t) => (
@@ -79,14 +50,14 @@ function AdminGlobalControls({ state, teams, refresh }) {
               <div className="flex gap-2">
                 <button
                   disabled={busy}
-                  onClick={() => adjust(t.username, "+")}
+                  onClick={() => adjust(t.id, "+")}
                   className="flex-1 rounded bg-zinc-900 text-white py-1 text-sm"
                 >
                   +{delta}
                 </button>
                 <button
                   disabled={busy}
-                  onClick={() => adjust(t.username, "-")}
+                  onClick={() => adjust(t.id, "-")}
                   className="flex-1 rounded border py-1 text-sm"
                 >
                   -{delta}
@@ -105,9 +76,9 @@ export default function AdminRoundTwoPage() {
   const [ready, setReady] = useState(false);
   const [state, setState] = useState(null);
   const [teams, setTeams] = useState([]);
-  const [topics, setTopics] = useState([]);
+  const [r2Topics, setR2Topics] = useState([]);
   const [questions, setQuestions] = useState([]);
-  const [r2Topic, setR2Topic] = useState("");
+  const [r2TopicId, setR2TopicId] = useState("");
   const [r2MaxBet, setR2MaxBet] = useState(0);
   const [r2QuestionId, setR2QuestionId] = useState("");
   const [r2Correct, setR2Correct] = useState("");
@@ -119,8 +90,8 @@ export default function AdminRoundTwoPage() {
     if (j?.ok) {
       setState(j.state);
       setTeams(j.teams || []);
-      setTopics(j.topics || []);
-      setR2Topic(j.state?.roundTwo?.topic || "");
+      setR2Topics(j.r2Topics || []);
+      setR2TopicId(j.state?.roundTwo?.topicId || "");
       setR2MaxBet(j.state?.roundTwo?.maxBet || 0);
       setR2QuestionId(j.state?.roundTwo?.currentQuestionId || "");
     }
@@ -140,8 +111,6 @@ export default function AdminRoundTwoPage() {
       try {
         const data = JSON.parse(ev.data);
         if (data?.type === "init") setState(data.payload);
-        if (data?.type?.startsWith("buzz:"))
-          setState((s) => ({ ...s, buzz: { ...s?.buzz, ...data.payload } }));
         if (data?.type === "score:update") fetchState();
         if (String(data?.type || "").startsWith("r2:")) {
           fetchState();
@@ -153,16 +122,16 @@ export default function AdminRoundTwoPage() {
 
   // Auto-load questions from DB whenever topic is chosen/changes
   useEffect(() => {
-    const topic = state?.roundTwo?.topic || r2Topic;
-    if (!topic) return;
-    const url = `/api/game/r2/questions?topic=${encodeURIComponent(topic)}`;
+    const topicId = state?.roundTwo?.topicId || r2TopicId;
+    if (!topicId) return;
+    const url = `/api/game/r2/questions?topicId=${encodeURIComponent(topicId)}`;
     fetch(url)
       .then((r) => r.json())
       .then((j) => {
         if (j?.ok) setQuestions(j.questions || []);
       })
       .catch(() => {});
-  }, [state?.roundTwo?.topic, r2Topic]);
+  }, [state?.roundTwo?.topicId, r2TopicId]);
 
   const setRound = async (round) => {
     await fetch("/api/round", {
@@ -219,13 +188,13 @@ export default function AdminRoundTwoPage() {
               <div className="flex gap-2">
                 <select
                   className="rounded border px-2 py-1"
-                  value={r2Topic}
-                  onChange={(e) => setR2Topic(e.target.value)}
+                  value={r2TopicId}
+                  onChange={(e) => setR2TopicId(e.target.value)}
                 >
                   <option value="">Select topic</option>
-                  {topics.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  {(r2Topics || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
                     </option>
                   ))}
                 </select>
@@ -234,7 +203,7 @@ export default function AdminRoundTwoPage() {
                     await fetch("/api/game/r2/topic", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ topic: r2Topic }),
+                      body: JSON.stringify({ topicId: Number(r2TopicId) }),
                     });
                     fetchState();
                   }}
@@ -302,17 +271,11 @@ export default function AdminRoundTwoPage() {
                   onChange={(e) => setR2QuestionId(e.target.value)}
                 >
                   <option value="">Select question</option>
-                  {questions
-                    .filter(
-                      (q) =>
-                        !state?.roundTwo?.topic ||
-                        q.topic === state?.roundTwo?.topic
-                    )
-                    .map((q) => (
-                      <option key={q.id} value={q.id}>
-                        {q.id} • {q.text}
-                      </option>
-                    ))}
+                  {questions.map((q) => (
+                    <option key={q.id} value={q.id}>
+                      {q.id} • {q.text}
+                    </option>
+                  ))}
                 </select>
                 {/* Questions auto-load from DB when topic changes */}
               </div>
@@ -398,7 +361,7 @@ export default function AdminRoundTwoPage() {
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <div className="font-medium">5) Reveal Answer & Settle</div>
+              <div className="font-medium">5 Reveal Answer & Settle</div>
               <div className="flex gap-2">
                 <input
                   className="rounded border px-2 py-1"
@@ -435,7 +398,10 @@ export default function AdminRoundTwoPage() {
             <div className="space-y-2">
               <div className="font-medium">Status</div>
               <div className="text-sm text-zinc-600">
-                Stage: {state?.roundTwo?.stage}
+                Stage:{" "}
+                {state?.roundTwo?.stage === "topic"
+                  ? "topic (bets open)"
+                  : state?.roundTwo?.stage}
               </div>
               <div className="text-sm text-zinc-600">
                 Question:{" "}
@@ -451,9 +417,9 @@ export default function AdminRoundTwoPage() {
               <div className="font-medium mb-2">Bets</div>
               <div className="space-y-1 text-sm">
                 {teams.map((t) => (
-                  <div key={t.username} className="flex justify-between">
+                  <div key={t.id} className="flex justify-between">
                     <span>{t.username}</span>
-                    <span>{state?.roundTwo?.bets?.[t.username] ?? 0}</span>
+                    <span>{state?.roundTwo?.bets?.[t.id] ?? 0}</span>
                   </div>
                 ))}
               </div>
@@ -462,9 +428,9 @@ export default function AdminRoundTwoPage() {
               <div className="font-medium mb-2">Answers</div>
               <div className="space-y-1 text-sm">
                 {teams.map((t) => (
-                  <div key={t.username} className="flex justify-between">
+                  <div key={t.id} className="flex justify-between">
                     <span>{t.username}</span>
-                    <span>{state?.roundTwo?.answers?.[t.username] ?? ""}</span>
+                    <span>{state?.roundTwo?.answers?.[t.id] ?? ""}</span>
                   </div>
                 ))}
               </div>

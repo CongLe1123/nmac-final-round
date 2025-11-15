@@ -13,9 +13,9 @@ export default function LoginPage() {
   useEffect(() => {
     const role =
       typeof window !== "undefined" ? localStorage.getItem("role") : null;
-    const name =
-      typeof window !== "undefined" ? localStorage.getItem("name") : null;
-    if (role && name) {
+    const userId =
+      typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+    if (role && userId) {
       if (role === "admin") router.replace("/admin");
       else router.replace("/round-one");
     }
@@ -39,6 +39,7 @@ export default function LoginPage() {
       }
 
       localStorage.setItem("name", data.username);
+      localStorage.setItem("userId", String(data.id));
       localStorage.setItem("role", data.role);
 
       if (data.role === "admin") router.replace("/admin");

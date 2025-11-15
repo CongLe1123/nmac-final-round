@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { selectTopic } from "@/lib/state";
+import { selectTopicById } from "@/lib/state";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request) {
   try {
-    const { username, topic } = await request.json();
-    const result = selectTopic(username, topic);
+    const { userId, topicId } = await request.json();
+    const result = selectTopicById(Number(userId), Number(topicId));
     if (result?.ok === false) {
       return NextResponse.json(result, { status: 400 });
     }

@@ -22,13 +22,31 @@ export const TABLES = {
       hermes_used: "Hermes Used (0/1)",
     },
   },
+  r1_topic: {
+    label: "Round 1 Topics",
+    columnLabels: { id: "ID", name: "Topic Name" },
+  },
   r1_questions: {
     label: "Round 1 Questions",
-    columnLabels: { id: "Question ID", topic: "Topic", text: "Question Text" },
+    columnLabels: {
+      id: "Question ID",
+      topic: "Topic (text)",
+      text: "Question Text",
+      topic_id: "Topic ID (FK)",
+    },
+  },
+  r2_topic: {
+    label: "Round 2 Topics",
+    columnLabels: { id: "ID", name: "Topic Name" },
   },
   r2_questions: {
     label: "Round 2 Questions",
-    columnLabels: { id: "Question ID", topic: "Topic", text: "Question Text" },
+    columnLabels: {
+      id: "Question ID",
+      topic: "Topic (text)",
+      text: "Question Text",
+      topic_id: "Topic ID (FK)",
+    },
   },
   r2_options: {
     label: "Round 2 Options",

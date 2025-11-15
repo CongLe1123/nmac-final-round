@@ -7,8 +7,10 @@ export default function RoundOnePage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [name, setName] = useState("");
+  const [userId, setUserId] = useState(null);
   const [state, setState] = useState(null);
   const [teams, setTeams] = useState([]);
+  const [r1Topics, setR1Topics] = useState([]);
   const [busy, setBusy] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [currentQuestionId, setCurrentQuestionId] = useState(null);
@@ -17,8 +19,9 @@ export default function RoundOnePage() {
   useEffect(() => {
     const role = localStorage.getItem("role");
     const user = localStorage.getItem("name");
+    const uid = localStorage.getItem("userId");
 
-    if (!role || !user) {
+    if (!role || !uid) {
       router.replace("/login");
       return;
     }
@@ -29,6 +32,7 @@ export default function RoundOnePage() {
     }
 
     setName(user);
+    setUserId(Number(uid));
     setReady(true);
 
     // Ensure correct page on mount
@@ -86,6 +90,7 @@ export default function RoundOnePage() {
               ...s?.roundOne,
               selectedTopics: data.payload.selectedTopics,
               currentSelector: null,
+              currentQuestionTopicId: data.payload.topicId,
             },
           }));
         if (data?.type === "r1:question")
@@ -100,12 +105,12 @@ export default function RoundOnePage() {
         if (data?.type === "hermes:used")
           setState((s) => ({
             ...s,
-            hermes: { ...s?.hermes, lastUsedBy: data.payload.username },
+            hermes: { ...s?.hermes, lastUsedById: data.payload.userId },
           }));
         if (data?.type === "hermes:cleared")
           setState((s) => ({
             ...s,
-            hermes: { ...s?.hermes, lastUsedBy: null },
+            hermes: { ...s?.hermes, lastUsedById: null },
           }));
       } catch {}
     };
@@ -117,6 +122,7 @@ export default function RoundOnePage() {
         if (j?.ok) {
           setState(j.state);
           setTeams(j.teams || []);
+          setR1Topics(j.r1Topics || []);
         }
       })
       .catch(() => {});
@@ -144,14 +150,14 @@ export default function RoundOnePage() {
     router.replace("/login");
   };
 
-  const doSelectTopic = async (topic) => {
+  const doSelectTopic = async (topicId) => {
     if (busy) return;
     setBusy(true);
     try {
       await fetch("/api/game/r1/select-topic", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: name, topic }),
+        body: JSON.stringify({ userId, topicId }),
       });
     } finally {
       setBusy(false);
@@ -162,7 +168,7 @@ export default function RoundOnePage() {
     await fetch("/api/game/buzz/in", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: name }),
+      body: JSON.stringify({ userId }),
     });
   };
 
@@ -170,7 +176,7 @@ export default function RoundOnePage() {
     await fetch("/api/game/hermes/use", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: name }),
+      body: JSON.stringify({ userId }),
     });
   };
 
@@ -182,9 +188,13 @@ export default function RoundOnePage() {
         <h1 className="text-2xl font-semibold mb-2">Welcome, {name}</h1>
         <p className="mb-4 text-zinc-600">This is Round One.</p>
 
-        {state?.hermes?.lastUsedBy && (
+        {state?.hermes?.lastUsedById && (
           <div className="mb-3 rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900">
-            Hermes Shoes activated by: <b>{state.hermes.lastUsedBy}</b>
+            Hermes Shoes activated by:{" "}
+            <b>
+              {teams.find((t) => t.id === state.hermes.lastUsedById)
+                ?.username || state.hermes.lastUsedById}
+            </b>
           </div>
         )}
 
@@ -206,35 +216,39 @@ export default function RoundOnePage() {
           </div>
         )}
 
-        {state?.roundOne?.currentSelector === name ? (
+        {state?.roundOne?.currentSelector === userId ? (
           <div className="mb-6 rounded-md border p-4">
             <div className="font-medium mb-2">Chọn chủ đề</div>
             <div className="grid grid-cols-2 gap-2">
-              {["Nội khoa", "Ngoại khoa", "Sản–Nhi", "Tâm thần–Thần kinh"].map(
-                (topic) => {
-                  const taken = Object.values(
-                    state?.roundOne?.selectedTopics || {}
-                  ).includes(topic);
-                  return (
-                    <button
-                      key={topic}
-                      disabled={taken || busy}
-                      onClick={() => doSelectTopic(topic)}
-                      className={`rounded border px-3 py-2 text-left ${
-                        taken ? "opacity-50" : "hover:bg-zinc-50"
-                      }`}
-                    >
-                      {topic}
-                    </button>
-                  );
-                }
-              )}
+              {(r1Topics || []).map((t) => {
+                const topicName = t.name;
+                const taken = Object.values(
+                  state?.roundOne?.selectedTopics || {}
+                )
+                  .map((x) => Number(x))
+                  .includes(Number(t.id));
+                return (
+                  <button
+                    key={t.id}
+                    disabled={taken || busy}
+                    onClick={() => doSelectTopic(t.id)}
+                    className={`rounded border px-3 py-2 text-left ${
+                      taken ? "opacity-50" : "hover:bg-zinc-50"
+                    }`}
+                  >
+                    {topicName}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : (
           <div className="mb-6 text-sm text-zinc-600">
             {state?.roundOne?.currentSelector
-              ? `${state.roundOne.currentSelector} đang chọn chủ đề...`
+              ? `${
+                  teams.find((t) => t.id === state.roundOne.currentSelector)
+                    ?.username || state.roundOne.currentSelector
+                } đang chọn chủ đề...`
               : "Chờ quản trị viên"}
           </div>
         )}
@@ -258,14 +272,15 @@ export default function RoundOnePage() {
             Buzz!
           </button>
           <div className="text-sm text-zinc-600">
-            {state?.buzz?.winner
-              ? `Đội buzz trước: ${state.buzz.winner}`
-              : state?.buzz?.allowed
-              ? "Buzz đang mở"
-              : "Buzz đang tắt"}
+            {(() => {
+              const winnerId = state?.buzz?.winner;
+              const winnerName = teams.find((t) => t.id === winnerId)?.username;
+              if (winnerId) return `Đội buzz trước: ${winnerName || winnerId}`;
+              return state?.buzz?.allowed ? "Buzz đang mở" : "Buzz đang tắt";
+            })()}
           </div>
         </div>
-        <div className="flex gap-3">
+        {/* <div className="flex gap-3">
           <button
             onClick={() => router.push("/change-password")}
             className="rounded-md border border-zinc-300 px-4 py-2 text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
@@ -278,7 +293,7 @@ export default function RoundOnePage() {
           >
             Log out
           </button>
-        </div>
+        </div> */}
       </div>
     </div>
   );

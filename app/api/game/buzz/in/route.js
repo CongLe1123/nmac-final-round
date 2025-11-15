@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { buzzIn } from "@/lib/state";
+import { buzzIn, buzzInById } from "@/lib/state";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request) {
   try {
-    const { username } = await request.json();
-    const result = buzzIn(username);
+    const { username, userId } = await request.json();
+    const result = userId != null ? buzzInById(userId) : buzzIn(username);
     if (result?.ok === false) {
       return NextResponse.json(result, { status: 400 });
     }

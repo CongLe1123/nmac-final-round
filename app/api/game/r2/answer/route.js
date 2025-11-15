@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
-import { r2SubmitAnswer } from "@/lib/state";
+import { r2SubmitAnswer, r2SubmitAnswerById } from "@/lib/state";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request) {
   try {
-    const { username, answer } = await request.json();
-    const result = r2SubmitAnswer(username, answer);
+    const { username, userId, answer } = await request.json();
+    const result =
+      userId != null
+        ? r2SubmitAnswerById(userId, answer)
+        : r2SubmitAnswer(username, answer);
     if (result?.ok === false) return NextResponse.json(result, { status: 400 });
     return NextResponse.json({ ok: true, state: result.state });
   } catch (e) {

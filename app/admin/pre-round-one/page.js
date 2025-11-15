@@ -12,14 +12,14 @@ function AdminGlobalControls({ state, teams, refresh }) {
     setBuzzAllowed(state?.buzz?.allowed || false);
   }, [state?.buzz?.allowed]);
 
-  const adjust = async (username, sign) => {
+  const adjust = async (userId, sign) => {
     setBusy(true);
     try {
       await fetch("/api/game/score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username,
+          userId,
           delta: (sign === "+" ? 1 : -1) * (Number(delta) || 0),
         }),
       });
@@ -61,32 +61,30 @@ function AdminGlobalControls({ state, teams, refresh }) {
             {buzzAllowed ? "Disable Buzz" : "Enable Buzz"}
           </button>
           <div className="text-sm text-zinc-600">
-            {state?.buzz?.winner
-              ? `Buzz winner: ${state.buzz.winner}`
-              : buzzAllowed
-              ? "Buzz is OPEN"
-              : "Buzz is CLOSED"}
+            {(() => {
+              const winnerId = state?.buzz?.winner;
+              const winnerName = teams.find((t) => t.id === winnerId)?.username;
+              if (winnerId) return `Buzz winner: ${winnerName || winnerId}`;
+              return buzzAllowed ? "Buzz is OPEN" : "Buzz is CLOSED";
+            })()}
           </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {teams.map((t) => (
-            <div
-              key={t.username}
-              className="border rounded p-2 flex flex-col gap-1"
-            >
+            <div key={t.id} className="border rounded p-2 flex flex-col gap-1">
               <div className="font-medium">{t.username}</div>
               <div className="text-sm">Score: {t.score}</div>
               <div className="flex gap-2">
                 <button
                   disabled={busy}
-                  onClick={() => adjust(t.username, "+")}
+                  onClick={() => adjust(t.id, "+")}
                   className="flex-1 rounded bg-zinc-900 text-white py-1 text-sm"
                 >
                   +{delta}
                 </button>
                 <button
                   disabled={busy}
-                  onClick={() => adjust(t.username, "-")}
+                  onClick={() => adjust(t.id, "-")}
                   className="flex-1 rounded border py-1 text-sm"
                 >
                   -{delta}
@@ -102,9 +100,13 @@ function AdminGlobalControls({ state, teams, refresh }) {
         </div>
       </div>
 
-      {state?.hermes?.lastUsedBy && (
+      {state?.hermes?.lastUsedById && (
         <div className="rounded-md border border-amber-400 bg-amber-50 p-3 text-amber-900">
-          Hermes Shoes activated by: <b>{state.hermes.lastUsedBy}</b>
+          Hermes Shoes activated by:{" "}
+          <b>
+            {teams.find((t) => t.id === state.hermes.lastUsedById)?.username ||
+              state.hermes.lastUsedById}
+          </b>
         </div>
       )}
     </div>
@@ -154,7 +156,7 @@ export default function AdminPreRoundOnePage() {
         if (data?.type === "hermes:used") {
           setState((s) => ({
             ...s,
-            hermes: { ...s?.hermes, lastUsedBy: data.payload.username },
+            hermes: { ...s?.hermes, lastUsedById: data.payload.userId },
           }));
           fetchState();
         }

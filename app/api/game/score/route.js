@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { adjustScore } from "@/lib/state";
+import { adjustScore, adjustScoreById } from "@/lib/state";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request) {
   try {
-    const { username, delta } = await request.json();
-    const teams = adjustScore(username, Number(delta) || 0);
+    const { username, userId, delta } = await request.json();
+    const d = Number(delta) || 0;
+    const teams =
+      userId != null ? adjustScoreById(userId, d) : adjustScore(username, d);
     return NextResponse.json({ ok: true, teams });
   } catch (e) {
     return NextResponse.json(

@@ -7,16 +7,19 @@ export default function RoundTwoPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [name, setName] = useState("");
+  const [userId, setUserId] = useState(null);
   const [state, setState] = useState(null);
   const [teams, setTeams] = useState([]);
+  const [r2Topics, setR2Topics] = useState([]);
   const [bet, setBet] = useState("");
   const esRef = useRef(null);
 
   useEffect(() => {
     const role = localStorage.getItem("role");
     const user = localStorage.getItem("name");
+    const uid = localStorage.getItem("userId");
 
-    if (!role || !user) {
+    if (!role || !uid) {
       router.replace("/login");
       return;
     }
@@ -27,6 +30,7 @@ export default function RoundTwoPage() {
     }
 
     setName(user);
+    setUserId(Number(uid));
     setReady(true);
 
     // Ensure correct page on mount
@@ -77,12 +81,12 @@ export default function RoundTwoPage() {
               if (j?.ok) {
                 setState(j.state);
                 setTeams(j.teams || []);
+                setR2Topics(j.r2Topics || []);
               }
             })
             .catch(() => {});
         }
-        if (data?.type?.startsWith("buzz:"))
-          setState((s) => ({ ...s, buzz: { ...s?.buzz, ...data.payload } }));
+        // Buzz events ignored in Round Two
         if (String(data?.type || "").startsWith("r2:")) {
           // Refresh full state for r2 changes
           fetch("/api/game/state")
@@ -110,19 +114,11 @@ export default function RoundTwoPage() {
     router.replace("/login");
   };
 
-  const doBuzz = async () => {
-    await fetch("/api/game/buzz/in", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: name }),
-    });
-  };
-
   const placeBet = async () => {
     await fetch("/api/game/r2/bet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: name, amount: Number(bet) || 0 }),
+      body: JSON.stringify({ userId, amount: Number(bet) || 0 }),
     });
   };
 
@@ -130,7 +126,7 @@ export default function RoundTwoPage() {
     await fetch("/api/game/r2/answer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: name, answer }),
+      body: JSON.stringify({ userId, answer }),
     });
   };
 
@@ -142,55 +138,42 @@ export default function RoundTwoPage() {
         <h1 className="text-2xl font-semibold mb-4">Welcome, {name}</h1>
         <p className="mb-4 text-zinc-600">This is Round Two.</p>
 
-        <div className="mb-6 flex gap-3 items-center">
-          <button
-            onClick={doBuzz}
-            disabled={!state?.buzz?.allowed || !!state?.buzz?.winner}
-            className={`rounded px-4 py-2 ${
-              state?.buzz?.allowed && !state?.buzz?.winner
-                ? "bg-green-600 text-white hover:bg-green-700"
-                : "bg-zinc-200 text-zinc-600"
-            }`}
-          >
-            Buzz!
-          </button>
-          <div className="text-sm text-zinc-600">
-            {state?.buzz?.winner
-              ? `Đội buzz trước: ${state.buzz.winner}`
-              : state?.buzz?.allowed
-              ? "Buzz đang mở"
-              : "Buzz đang tắt"}
-          </div>
-        </div>
+        {/* Buzz controls removed for Round Two */}
 
         {/* Round Two flow */}
         <div className="rounded-md border p-4 space-y-4 mb-6">
           <div className="text-lg font-medium">Round 2</div>
           <div className="text-sm text-zinc-600">
-            Topic: {state?.roundTwo?.topic ?? "(waiting for admin)"}
+            Topic:{" "}
+            {(() => {
+              const tid = state?.roundTwo?.topicId;
+              const t = (r2Topics || []).find((x) => x.id === tid);
+              return t?.name || "(waiting for admin)";
+            })()}
           </div>
           <div className="text-sm text-zinc-600">
             Max bet: {state?.roundTwo?.maxBet || 0}
           </div>
           <div className="text-sm text-zinc-600">
-            Your score: {teams.find((t) => t.username === name)?.score ?? 0}
+            Your score: {teams.find((t) => t.id === userId)?.score ?? 0}
           </div>
 
-          {(state?.roundTwo?.stage === "betting" ||
+          {(state?.roundTwo?.stage === "topic" ||
             state?.roundTwo?.stage === "question") && (
             <div className="flex items-center gap-2 flex-wrap">
               {(() => {
                 const teamScore =
-                  teams.find((t) => t.username === name)?.score ?? 0;
+                  teams.find((t) => t.id === userId)?.score ?? 0;
                 const limit =
                   state?.roundTwo?.maxBet > 0
                     ? state.roundTwo.maxBet
                     : Number.MAX_SAFE_INTEGER;
                 const maxAllowed = Math.min(limit, Number(teamScore));
-                const currentBet = Number(state?.roundTwo?.bets?.[name] ?? 0);
+                const currentBet = Number(state?.roundTwo?.bets?.[userId] ?? 0);
                 let buttons = [];
                 for (let v = 10; v <= maxAllowed; v += 10) buttons.push(v);
-                if (state?.roundTwo?.stage === "question") {
+                if (state?.roundTwo?.stage !== "topic") {
+                  // After topic stage, only allow increases
                   buttons = buttons.filter((v) => v >= currentBet);
                 }
                 if (buttons.length === 0) {
@@ -208,11 +191,11 @@ export default function RoundTwoPage() {
                       await fetch("/api/game/r2/bet", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ username: name, amount: v }),
+                        body: JSON.stringify({ userId, amount: v }),
                       });
                     }}
                     className={`rounded border px-3 py-1 ${
-                      (state?.roundTwo?.bets?.[name] ?? 0) === v
+                      (state?.roundTwo?.bets?.[userId] ?? 0) === v
                         ? "bg-zinc-900 text-white"
                         : ""
                     }`}
@@ -222,7 +205,7 @@ export default function RoundTwoPage() {
                 ));
               })()}
               <div className="text-sm text-zinc-600 ml-2">
-                Current bet: {state?.roundTwo?.bets?.[name] ?? 0}
+                Current bet: {state?.roundTwo?.bets?.[userId] ?? 0}
               </div>
             </div>
           )}
@@ -245,23 +228,25 @@ export default function RoundTwoPage() {
           {state?.roundTwo?.optionsVisible && (
             <div className="rounded border p-3 space-y-2">
               <div className="font-medium">Options</div>
-              <div className="flex flex-wrap gap-2">
-                {(state?.roundTwo?.options || []).map((opt) => (
-                  <button
-                    key={opt}
-                    onClick={() => submitAnswer(opt)}
-                    className={`rounded border px-3 py-1 ${
-                      state?.roundTwo?.answers?.[name] === opt
-                        ? "bg-zinc-900 text-white"
-                        : ""
-                    }`}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
+              {state?.roundTwo?.answers?.[userId] ? null : (
+                <div className="flex flex-wrap gap-2">
+                  {(state?.roundTwo?.options || []).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => submitAnswer(opt)}
+                      className={`rounded border px-3 py-1 ${
+                        state?.roundTwo?.answers?.[userId] === opt
+                          ? "bg-zinc-900 text-white"
+                          : ""
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="text-sm text-zinc-600">
-                Your answer: {state?.roundTwo?.answers?.[name] ?? "(none)"}
+                Your answer: {state?.roundTwo?.answers?.[userId] ?? "(none)"}
               </div>
               {state?.roundTwo?.correctAnswer && (
                 <div className="text-sm text-emerald-700">
@@ -271,7 +256,7 @@ export default function RoundTwoPage() {
             </div>
           )}
         </div>
-        <div className="flex gap-3">
+        {/* <div className="flex gap-3">
           <button
             onClick={() => router.push("/change-password")}
             className="rounded-md border border-zinc-300 px-4 py-2 text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
@@ -284,7 +269,7 @@ export default function RoundTwoPage() {
           >
             Log out
           </button>
-        </div>
+        </div> */}
       </div>
     </div>
   );
