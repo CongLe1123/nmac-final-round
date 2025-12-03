@@ -5,8 +5,12 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request) {
   try {
-    const { answer } = await request.json();
-    const result = r2RevealCorrectAnswer(answer);
+    // Auto-reveal from DB; ignore any provided input
+    let body = null;
+    try {
+      body = await request.json();
+    } catch {}
+    const result = r2RevealCorrectAnswer();
     if (result?.ok === false) return NextResponse.json(result, { status: 400 });
     return NextResponse.json({
       ok: true,

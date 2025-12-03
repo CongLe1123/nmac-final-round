@@ -18,3 +18,22 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Minimal Markdown styles for GFM tables & strikethrough */
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 0.75rem;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid #e5e7eb; /* zinc-200 */
+  padding: 0.5rem;
+  vertical-align: top;
+}
+.markdown-body thead th {
+  background-color: #f9fafb; /* zinc-50 */
+}
+.markdown-body del {
+  text-decoration: line-through;
+}

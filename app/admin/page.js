@@ -72,6 +72,16 @@ export default function AdminPage() {
       .finally(() => setLoading(false));
   }, [selectedTable]);
 
+  const resetGameState = async () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to reset the game state to default settings?"
+    );
+    if (!confirmed) return;
+
+    await fetch("/api/game/reset", { method: "POST" });
+    alert("Game state has been reset to default settings.");
+  };
+
   if (!ready) return null;
 
   return (
@@ -81,6 +91,15 @@ export default function AdminPage() {
         <p className="mb-4 text-zinc-600">
           View and edit tables with human-friendly field names.
         </p>
+
+        <div className="mb-4">
+          <button
+            onClick={resetGameState}
+            className="rounded bg-red-600 text-white px-4 py-2 hover:bg-red-700"
+          >
+            Reset Game State
+          </button>
+        </div>
 
         <div className="mb-4 flex flex-wrap gap-2 items-center">
           <label className="text-sm">Table</label>

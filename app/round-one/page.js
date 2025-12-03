@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export default function RoundOnePage() {
   const router = useRouter();
@@ -100,6 +102,16 @@ export default function RoundOnePage() {
           }));
         if (data?.type === "r1:question:selected")
           setCurrentQuestionId(data?.payload?.id || null);
+        if (data?.type === "r1:options")
+          setState((s) => ({
+            ...s,
+            roundOne: {
+              ...s?.roundOne,
+              options: Array.isArray(data.payload?.options)
+                ? data.payload.options
+                : [],
+            },
+          }));
         if (data?.type?.startsWith("buzz:"))
           setState((s) => ({ ...s, buzz: { ...s?.buzz, ...data.payload } }));
         if (data?.type === "hermes:used")
@@ -207,7 +219,38 @@ export default function RoundOnePage() {
                   <div className="text-sm uppercase tracking-wide text-indigo-700">
                     {q.topic}
                   </div>
-                  <div className="text-base font-medium">{q.text}</div>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {q.text}
+                  </ReactMarkdown>
+                  {(state?.roundOne?.options || []).length > 0 ? (
+                    <div className="mt-3 space-y-2">
+                      {(state?.roundOne?.options || []).map((opt, idx) => {
+                        const label = String.fromCharCode(65 + idx);
+                        return (
+                          <div
+                            key={`${
+                              state?.roundOne?.currentQuestionId || ""
+                            }-${idx}`}
+                            className="flex items-start gap-2 rounded border border-indigo-200 bg-white/80 px-3 py-2 text-indigo-900"
+                          >
+                            <span className="font-semibold text-indigo-700">
+                              {label}.
+                            </span>
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              // className="flex-1"
+                            >
+                              {opt}
+                            </ReactMarkdown>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-sm text-indigo-700 opacity-80">
+                      Không có đáp án trắc nghiệm cho câu hỏi này.
+                    </div>
+                  )}
                 </>
               ) : (
                 "Câu hỏi đang hiển thị"

@@ -1,6 +1,7 @@
 import db from "@/lib/db";
 
-export const TABLES = {
+// Optional friendly labels for known tables/columns
+const TABLE_LABELS = {
   users: {
     label: "Users",
     columnLabels: {
@@ -35,6 +36,14 @@ export const TABLES = {
       topic_id: "Topic ID (FK)",
     },
   },
+  r1_options: {
+    label: "Round 1 Options",
+    columnLabels: {
+      id: "Option ID",
+      question_id: "Question ID",
+      opt: "Option",
+    },
+  },
   r2_topic: {
     label: "Round 2 Topics",
     columnLabels: { id: "ID", name: "Topic Name" },
@@ -46,22 +55,33 @@ export const TABLES = {
       topic: "Topic (text)",
       text: "Question Text",
       topic_id: "Topic ID (FK)",
-    },
-  },
-  r2_options: {
-    label: "Round 2 Options",
-    columnLabels: {
-      id: "Option ID",
-      question_id: "Question ID",
-      opt: "Option",
+      correct: "Correct Answer",
     },
   },
 };
 
+function assertSafeTableName(table) {
+  return /^[A-Za-z0-9_]+$/.test(table);
+}
+
+export function listAllTables() {
+  return db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+    )
+    .all()
+    .map((row) => row.name);
+}
+
 export function assertAllowed(table) {
-  if (!TABLES[table]) {
+  if (!table || !assertSafeTableName(table))
     throw new Error("Table not allowed");
-  }
+  const exists = db
+    .prepare(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ? LIMIT 1"
+    )
+    .get(table);
+  if (!exists) throw new Error("Table not allowed");
 }
 
 export function getTableInfo(table) {
@@ -77,18 +97,26 @@ export function getTableInfo(table) {
   const pk = pkCols.length === 1 ? pkCols[0] : null;
   const autoincrement =
     /AUTOINCREMENT/i.test(createSql) && /PRIMARY KEY/i.test(createSql);
+  const meta = TABLE_LABELS[table] || {};
   return {
     name: table,
-    label: TABLES[table].label,
+    label: meta.label || table,
     columns: cols.map((c) => ({
       name: c.name,
       type: c.type,
       notnull: !!c.notnull,
       dflt: c.dflt_value ?? null,
       pk: !!c.pk,
-      label: TABLES[table].columnLabels?.[c.name] || c.name,
+      label: meta.columnLabels?.[c.name] || c.name,
     })),
     pk,
     autoincrement,
   };
+}
+
+export function getTableSummary() {
+  return listAllTables().map((name) => ({
+    name,
+    label: TABLE_LABELS[name]?.label || name,
+  }));
 }

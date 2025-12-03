@@ -204,6 +204,18 @@ export default function AdminRoundOnePage() {
         if (data?.type === "r1:question:selected") {
           const id = data?.payload?.id || null;
           setCurrentQuestionId(id);
+          fetchState();
+        }
+        if (data?.type === "r1:options") {
+          setState((s) => ({
+            ...s,
+            roundOne: {
+              ...s?.roundOne,
+              options: Array.isArray(data.payload?.options)
+                ? data.payload.options
+                : [],
+            },
+          }));
         }
         if (data?.type?.startsWith("buzz:"))
           setState((s) => ({ ...s, buzz: { ...s?.buzz, ...data.payload } }));
@@ -409,6 +421,28 @@ export default function AdminRoundOnePage() {
                   </span>
                 ) : (
                   <span className="italic text-zinc-500">none</span>
+                )}
+              </div>
+              <div className="mb-4 text-sm text-zinc-700">
+                <div className="font-medium text-zinc-800">Options</div>
+                {(state?.roundOne?.options || []).length > 0 ? (
+                  <div className="mt-2 space-y-1">
+                    {(state?.roundOne?.options || []).map((opt, idx) => (
+                      <div
+                        key={`${currentQuestionId || "none"}-${idx}`}
+                        className="rounded border px-3 py-2"
+                      >
+                        <span className="mr-2 font-semibold">
+                          {String.fromCharCode(65 + idx)}.
+                        </span>
+                        {opt}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2 italic text-zinc-500">
+                    No options configured for this question.
+                  </div>
                 )}
               </div>
               {state?.roundOne?.currentQuestionTopicId ? (

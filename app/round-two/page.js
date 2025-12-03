@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 export default function RoundTwoPage() {
   const router = useRouter();
@@ -12,6 +14,7 @@ export default function RoundTwoPage() {
   const [teams, setTeams] = useState([]);
   const [r2Topics, setR2Topics] = useState([]);
   const [bet, setBet] = useState("");
+  const [answerText, setAnswerText] = useState("");
   const esRef = useRef(null);
 
   useEffect(() => {
@@ -108,6 +111,12 @@ export default function RoundTwoPage() {
     };
   }, [router]);
 
+  useEffect(() => {
+    if (!userId) return;
+    const currentAnswer = state?.roundTwo?.answers?.[userId];
+    setAnswerText(currentAnswer != null ? String(currentAnswer) : "");
+  }, [state?.roundTwo?.answers, userId]);
+
   const logout = () => {
     localStorage.removeItem("role");
     localStorage.removeItem("name");
@@ -143,79 +152,87 @@ export default function RoundTwoPage() {
         {/* Round Two flow */}
         <div className="rounded-md border p-4 space-y-4 mb-6">
           <div className="text-lg font-medium">Round 2</div>
-          <div className="text-sm text-zinc-600">
-            Topic:{" "}
-            {(() => {
-              const tid = state?.roundTwo?.topicId;
-              const t = (r2Topics || []).find((x) => x.id === tid);
-              return t?.name || "(waiting for admin)";
-            })()}
-          </div>
-          <div className="text-sm text-zinc-600">
-            Max bet: {state?.roundTwo?.maxBet || 0}
-          </div>
+          {state?.roundTwo?.topicVisible && state?.roundTwo?.topicId ? (
+            <div className="text-sm text-zinc-600">
+              Topic:{" "}
+              {(() => {
+                const tid = state?.roundTwo?.topicId;
+                const t = (r2Topics || []).find((x) => x.id === tid);
+                return t?.name || "";
+              })()}
+            </div>
+          ) : null}
+          {state?.roundTwo?.maxBet > 0 ? (
+            <div className="text-sm text-zinc-600">
+              Max bet: {state?.roundTwo?.maxBet}
+            </div>
+          ) : null}
           <div className="text-sm text-zinc-600">
             Your score: {teams.find((t) => t.id === userId)?.score ?? 0}
           </div>
 
-          {(state?.roundTwo?.stage === "topic" ||
-            state?.roundTwo?.stage === "question") && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {(() => {
-                const teamScore =
-                  teams.find((t) => t.id === userId)?.score ?? 0;
-                const limit =
-                  state?.roundTwo?.maxBet > 0
-                    ? state.roundTwo.maxBet
-                    : Number.MAX_SAFE_INTEGER;
-                const maxAllowed = Math.min(limit, Number(teamScore));
-                const currentBet = Number(state?.roundTwo?.bets?.[userId] ?? 0);
-                let buttons = [];
-                for (let v = 10; v <= maxAllowed; v += 10) buttons.push(v);
-                if (state?.roundTwo?.stage !== "topic") {
-                  // After topic stage, only allow increases
-                  buttons = buttons.filter((v) => v >= currentBet);
-                }
-                if (buttons.length === 0) {
-                  return (
-                    <div className="text-sm text-zinc-600">
-                      No valid bet options.
-                    </div>
+          {state?.roundTwo?.topicVisible &&
+            state?.roundTwo?.maxBet > 0 &&
+            (state?.roundTwo?.stage === "topic" ||
+              state?.roundTwo?.stage === "question") && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {(() => {
+                  const teamScore =
+                    teams.find((t) => t.id === userId)?.score ?? 0;
+                  const limit = state.roundTwo.maxBet;
+                  const maxAllowed = Math.min(limit, Number(teamScore));
+                  const currentBet = Number(
+                    state?.roundTwo?.bets?.[userId] ?? 0
                   );
-                }
-                return buttons.map((v) => (
-                  <button
-                    key={v}
-                    onClick={async () => {
-                      setBet(String(v));
-                      await fetch("/api/game/r2/bet", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ userId, amount: v }),
-                      });
-                    }}
-                    className={`rounded border px-3 py-1 ${
-                      (state?.roundTwo?.bets?.[userId] ?? 0) === v
-                        ? "bg-zinc-900 text-white"
-                        : ""
-                    }`}
-                  >
-                    {v}
-                  </button>
-                ));
-              })()}
-              <div className="text-sm text-zinc-600 ml-2">
-                Current bet: {state?.roundTwo?.bets?.[userId] ?? 0}
+                  let buttons = [];
+                  for (let v = 10; v <= maxAllowed; v += 10) buttons.push(v);
+                  if (state?.roundTwo?.stage !== "topic") {
+                    // After topic stage, only allow increases
+                    buttons = buttons.filter((v) => v >= currentBet);
+                  }
+                  if (buttons.length === 0) {
+                    return (
+                      <div className="text-sm text-zinc-600">
+                        No valid bet options.
+                      </div>
+                    );
+                  }
+                  return buttons.map((v) => (
+                    <button
+                      key={v}
+                      onClick={async () => {
+                        setBet(String(v));
+                        await fetch("/api/game/r2/bet", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ userId, amount: v }),
+                        });
+                      }}
+                      className={`rounded border px-3 py-1 ${
+                        (state?.roundTwo?.bets?.[userId] ?? 0) === v
+                          ? "bg-zinc-900 text-white"
+                          : ""
+                      }`}
+                    >
+                      {v}
+                    </button>
+                  ));
+                })()}
+                <div className="text-sm text-zinc-600 ml-2">
+                  Current bet: {state?.roundTwo?.bets?.[userId] ?? 0}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {state?.roundTwo?.questionVisible && (
             <div className="rounded border p-3">
               <div className="font-medium">Question</div>
-              <div className="text-sm text-zinc-900">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                // className="markdown-body text-sm text-zinc-900 whitespace-pre-wrap"
+              >
                 {state?.roundTwo?.currentQuestionText || "(no text)"}
-              </div>
+              </ReactMarkdown>
               <div className="text-xs text-zinc-500">
                 ID: {state?.roundTwo?.currentQuestionId || "(none)"}
               </div>
@@ -225,34 +242,54 @@ export default function RoundTwoPage() {
             </div>
           )}
 
-          {state?.roundTwo?.optionsVisible && (
-            <div className="rounded border p-3 space-y-2">
-              <div className="font-medium">Options</div>
-              {state?.roundTwo?.answers?.[userId] ? null : (
+          {state?.roundTwo?.questionVisible &&
+            state?.roundTwo?.answerWindowOpen && (
+              <div className="rounded border p-3 space-y-3">
+                <div className="font-medium">Submit Your Answer</div>
+                <textarea
+                  value={answerText}
+                  onChange={(e) => setAnswerText(e.target.value)}
+                  placeholder="Type your answer here"
+                  rows={3}
+                  className="w-full rounded border px-3 py-2 text-sm"
+                  disabled={state?.roundTwo?.stage === "revealed"}
+                />
                 <div className="flex flex-wrap gap-2">
-                  {(state?.roundTwo?.options || []).map((opt) => (
-                    <button
-                      key={opt}
-                      onClick={() => submitAnswer(opt)}
-                      className={`rounded border px-3 py-1 ${
-                        state?.roundTwo?.answers?.[userId] === opt
-                          ? "bg-zinc-900 text-white"
-                          : ""
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
+                  <button
+                    onClick={async () => {
+                      await submitAnswer(answerText);
+                    }}
+                    className="rounded bg-zinc-900 px-4 py-2 text-white hover:bg-zinc-800 disabled:opacity-60"
+                    disabled={state?.roundTwo?.stage === "revealed"}
+                  >
+                    Submit Answer
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setAnswerText("");
+                      await submitAnswer("");
+                    }}
+                    className="rounded border px-4 py-2 text-sm"
+                    disabled={state?.roundTwo?.stage === "revealed"}
+                  >
+                    Clear
+                  </button>
                 </div>
-              )}
-              <div className="text-sm text-zinc-600">
-                Your answer: {state?.roundTwo?.answers?.[userId] ?? "(none)"}
+                <div className="text-sm text-zinc-600">
+                  Submitted answer:{" "}
+                  {state?.roundTwo?.answers?.[userId] || "(none)"}
+                </div>
               </div>
-              {state?.roundTwo?.correctAnswer && (
-                <div className="text-sm text-emerald-700">
-                  Correct answer: {state.roundTwo.correctAnswer}
-                </div>
-              )}
+            )}
+          {state?.roundTwo?.answers?.[userId] &&
+            !state?.roundTwo?.answerWindowOpen && (
+              <div className="rounded border p-3 text-sm text-zinc-600">
+                Submitted answer: {state.roundTwo.answers[userId]}
+              </div>
+            )}
+          {state?.roundTwo?.correctAnswer && (
+            <div className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+              Correct answer: {state.roundTwo.correctAnswer}
             </div>
           )}
         </div>

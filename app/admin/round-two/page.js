@@ -81,7 +81,7 @@ export default function AdminRoundTwoPage() {
   const [r2TopicId, setR2TopicId] = useState("");
   const [r2MaxBet, setR2MaxBet] = useState(0);
   const [r2QuestionId, setR2QuestionId] = useState("");
-  const [r2Correct, setR2Correct] = useState("");
+  // Correct answer is stored in DB and auto-revealed; no local input needed
   const esRef = useRef(null);
 
   const fetchState = async () => {
@@ -192,6 +192,7 @@ export default function AdminRoundTwoPage() {
                   onChange={(e) => setR2TopicId(e.target.value)}
                 >
                   <option value="">Select topic</option>
+                  <option value="">(None)</option>
                   {(r2Topics || []).map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}
@@ -209,7 +210,7 @@ export default function AdminRoundTwoPage() {
                   }}
                   className="rounded bg-blue-600 text-white px-3 py-1"
                 >
-                  Reveal Topic
+                  Apply Topic
                 </button>
               </div>
             </div>
@@ -240,7 +241,6 @@ export default function AdminRoundTwoPage() {
                 ))}
                 <button
                   onClick={async () => {
-                    // Allow clearing to 0 (no limit)
                     setR2MaxBet(0);
                     await fetch("/api/game/r2/max-bet", {
                       method: "POST",
@@ -255,7 +255,7 @@ export default function AdminRoundTwoPage() {
                       : ""
                   }`}
                 >
-                  No limit
+                  0
                 </button>
               </div>
             </div>
@@ -321,71 +321,59 @@ export default function AdminRoundTwoPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="font-medium">4) Options</div>
+              <div className="font-medium">4) Answer Window</div>
               <div className="flex gap-2 items-center">
                 <button
                   onClick={async () => {
-                    await fetch("/api/game/r2/options", {
+                    await fetch("/api/game/r2/answer-window", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        options: state?.roundTwo?.options || [],
-                        visible: true,
-                      }),
+                      body: JSON.stringify({ visible: true }),
                     });
                     fetchState();
                   }}
                   className="rounded bg-blue-600 text-white px-3 py-1"
                 >
-                  Reveal Options
+                  Open Answers
                 </button>
                 <button
                   onClick={async () => {
-                    await fetch("/api/game/r2/options", {
+                    await fetch("/api/game/r2/answer-window", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        options: state?.roundTwo?.options || [],
-                        visible: false,
-                      }),
+                      body: JSON.stringify({ visible: false }),
                     });
                     fetchState();
                   }}
                   className="rounded border px-3 py-1"
                 >
-                  Hide Options
+                  Close Answers
                 </button>
+              </div>
+              <div className="text-xs text-zinc-500">
+                Teams can submit answers only while the window is open.
               </div>
             </div>
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <div className="font-medium">5 Reveal Answer & Settle</div>
+              <div className="font-medium">5) Reveal Answer & Settle</div>
               <div className="flex gap-2">
-                <input
-                  className="rounded border px-2 py-1"
-                  value={r2Correct}
-                  onChange={(e) => setR2Correct(e.target.value)}
-                  placeholder="Correct answer (must match option)"
-                />
                 <button
                   onClick={async () => {
                     await fetch("/api/game/r2/reveal-answer", {
                       method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ answer: r2Correct }),
                     });
                     fetchState();
                   }}
                   className="rounded bg-emerald-600 text-white px-3 py-1"
                 >
-                  Reveal Answer
+                  Reveal Answer (from DB)
                 </button>
                 <button
                   onClick={async () => {
                     await fetch("/api/game/r2/settle", { method: "POST" });
-                    setR2Correct("");
                     fetchState();
                   }}
                   className="rounded bg-fuchsia-600 text-white px-3 py-1"
@@ -409,6 +397,10 @@ export default function AdminRoundTwoPage() {
                   state?.roundTwo?.currentQuestionId ||
                   "(none)"}
               </div>
+              <div className="text-sm text-zinc-600">
+                Answer window:{" "}
+                {state?.roundTwo?.answerWindowOpen ? "open" : "closed"}
+              </div>
             </div>
           </div>
 
@@ -426,13 +418,23 @@ export default function AdminRoundTwoPage() {
             </div>
             <div>
               <div className="font-medium mb-2">Answers</div>
-              <div className="space-y-1 text-sm">
-                {teams.map((t) => (
-                  <div key={t.id} className="flex justify-between">
-                    <span>{t.username}</span>
-                    <span>{state?.roundTwo?.answers?.[t.id] ?? ""}</span>
-                  </div>
-                ))}
+              <div className="space-y-2 text-sm">
+                {teams.map((t) => {
+                  const answer = state?.roundTwo?.answers?.[t.id] ?? "";
+                  return (
+                    <div
+                      key={t.id}
+                      className="rounded border px-3 py-2 shadow-sm"
+                    >
+                      <div className="font-medium text-zinc-800">
+                        {t.username}
+                      </div>
+                      <div className="mt-1 whitespace-pre-wrap text-zinc-600">
+                        {answer || "(no answer)"}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
