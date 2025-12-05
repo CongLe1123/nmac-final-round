@@ -111,11 +111,20 @@ export default function RoundTwoPage() {
     };
   }, [router]);
 
+  const remoteAnswer =
+    userId != null ? state?.roundTwo?.answers?.[userId] : undefined;
+  const lastSyncedAnswerRef = useRef(Symbol("init"));
+
   useEffect(() => {
     if (!userId) return;
-    const currentAnswer = state?.roundTwo?.answers?.[userId];
-    setAnswerText(currentAnswer != null ? String(currentAnswer) : "");
-  }, [state?.roundTwo?.answers, userId]);
+    if (lastSyncedAnswerRef.current === remoteAnswer) return;
+    lastSyncedAnswerRef.current = remoteAnswer;
+    if (remoteAnswer == null) {
+      setAnswerText("");
+    } else {
+      setAnswerText(String(remoteAnswer));
+    }
+  }, [remoteAnswer, userId]);
 
   const logout = () => {
     localStorage.removeItem("role");

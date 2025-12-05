@@ -93,6 +93,8 @@ export default function RoundOnePage() {
               selectedTopics: data.payload.selectedTopics,
               currentSelector: null,
               currentQuestionTopicId: data.payload.topicId,
+              currentTopicSelectedBy: data.payload.userId,
+              currentQuestionId: null,
             },
           }));
         if (data?.type === "r1:question")
@@ -193,6 +195,14 @@ export default function RoundOnePage() {
   };
 
   if (!ready) return null;
+
+  const userIdNumber = Number(userId);
+  const currentTopicOwner = Number(state?.roundOne?.currentTopicSelectedBy);
+  const canUseHermes =
+    Number.isFinite(currentTopicOwner) &&
+    currentTopicOwner === userIdNumber &&
+    !state?.roundOne?.questionVisible;
+  const canBuzz = state?.buzz?.allowed && !state?.buzz?.winner;
 
   return (
     <div className="min-h-screen flex items-start justify-center p-6">
@@ -297,23 +307,22 @@ export default function RoundOnePage() {
         )}
 
         <div className="mb-6 flex gap-3 items-center">
-          <button
-            onClick={useHermes}
-            className="rounded bg-amber-600 text-white px-4 py-2 hover:bg-amber-700"
-          >
-            Dùng Hermes Shoes
-          </button>
-          <button
-            onClick={doBuzz}
-            disabled={!state?.buzz?.allowed || !!state?.buzz?.winner}
-            className={`rounded px-4 py-2 ${
-              state?.buzz?.allowed && !state?.buzz?.winner
-                ? "bg-green-600 text-white hover:bg-green-700"
-                : "bg-zinc-200 text-zinc-600"
-            }`}
-          >
-            Buzz!
-          </button>
+          {canUseHermes && (
+            <button
+              onClick={useHermes}
+              className="rounded bg-amber-600 text-white px-4 py-2 hover:bg-amber-700"
+            >
+              Dùng Hermes Shoes
+            </button>
+          )}
+          {canBuzz && (
+            <button
+              onClick={doBuzz}
+              className="rounded px-4 py-2 bg-green-600 text-white hover:bg-green-700"
+            >
+              Buzz!
+            </button>
+          )}
           <div className="text-sm text-zinc-600">
             {(() => {
               const winnerId = state?.buzz?.winner;

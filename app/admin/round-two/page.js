@@ -81,6 +81,7 @@ export default function AdminRoundTwoPage() {
   const [r2TopicId, setR2TopicId] = useState("");
   const [r2MaxBet, setR2MaxBet] = useState(0);
   const [r2QuestionId, setR2QuestionId] = useState("");
+  const [manualCorrectIds, setManualCorrectIds] = useState([]);
   // Correct answer is stored in DB and auto-revealed; no local input needed
   const esRef = useRef(null);
 
@@ -94,6 +95,11 @@ export default function AdminRoundTwoPage() {
       setR2TopicId(j.state?.roundTwo?.topicId || "");
       setR2MaxBet(j.state?.roundTwo?.maxBet || 0);
       setR2QuestionId(j.state?.roundTwo?.currentQuestionId || "");
+      setManualCorrectIds(
+        Array.isArray(j.state?.roundTwo?.manualCorrectUserIds)
+          ? j.state.roundTwo.manualCorrectUserIds.map((id) => Number(id))
+          : []
+      );
     }
   };
 
@@ -141,7 +147,42 @@ export default function AdminRoundTwoPage() {
     });
   };
 
+  const persistManualCorrect = async (ids) => {
+    const list = Array.isArray(ids) ? ids : [];
+    await fetch("/api/game/r2/correct", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userIds: list
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id)),
+      }),
+    });
+    fetchState();
+  };
+
+  const clearManualCorrect = async () => {
+    setManualCorrectIds([]);
+    await persistManualCorrect([]);
+  };
+
+  const toggleManualCorrect = (userId) => {
+    const id = Number(userId);
+    setManualCorrectIds((prev) => {
+      const set = new Set(prev.map((v) => Number(v)));
+      if (set.has(id)) set.delete(id);
+      else set.add(id);
+      const next = Array.from(set);
+      persistManualCorrect(next);
+      return next;
+    });
+  };
+
   if (!ready) return null;
+
+  const manualCorrectSet = new Set(
+    manualCorrectIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+  );
 
   return (
     <div className="min-h-screen p-6">
@@ -201,11 +242,17 @@ export default function AdminRoundTwoPage() {
                 </select>
                 <button
                   onClick={async () => {
+                    const topicId = Number(r2TopicId);
                     await fetch("/api/game/r2/topic", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ topicId: Number(r2TopicId) }),
+                      body: JSON.stringify({ topicId }),
                     });
+                    if (topicId > 0) {
+                      await fetch("/api/game/r2/reveal-topic", {
+                        method: "POST",
+                      });
+                    }
                     fetchState();
                   }}
                   className="rounded bg-blue-600 text-white px-3 py-1"
@@ -421,20 +468,45 @@ export default function AdminRoundTwoPage() {
               <div className="space-y-2 text-sm">
                 {teams.map((t) => {
                   const answer = state?.roundTwo?.answers?.[t.id] ?? "";
+                  const isCorrect = manualCorrectSet.has(Number(t.id));
                   return (
                     <div
                       key={t.id}
                       className="rounded border px-3 py-2 shadow-sm"
                     >
-                      <div className="font-medium text-zinc-800">
-                        {t.username}
-                      </div>
-                      <div className="mt-1 whitespace-pre-wrap text-zinc-600">
-                        {answer || "(no answer)"}
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-medium text-zinc-800">
+                            {t.username}
+                          </div>
+                          <div className="mt-1 whitespace-pre-wrap text-zinc-600">
+                            {answer || "(no answer)"}
+                          </div>
+                        </div>
+                        <label className="flex items-center gap-2 text-xs text-emerald-700">
+                          <input
+                            type="checkbox"
+                            checked={isCorrect}
+                            onChange={() => toggleManualCorrect(t.id)}
+                          />
+                          Correct
+                        </label>
                       </div>
                     </div>
                   );
                 })}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                <button
+                  onClick={clearManualCorrect}
+                  className="rounded border px-3 py-1"
+                >
+                  Clear Selection
+                </button>
+                <span className="text-xs text-zinc-500">
+                  Checked teams override automatic answer matching when settling
+                  scores.
+                </span>
               </div>
             </div>
           </div>
